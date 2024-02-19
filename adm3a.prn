@@ -1,0 +1,147 @@
+
+
+                ; ADM3A.ASM
+                ;
+                ; ADM3A TERMINAL
+                ;
+                ; WE PATCH THE BIOS JUMP TABLE. WE ARE GOING TO PATCH THE CONOUT
+                ; (CONSOLE OUTPUT) JMP LOCATED AT 0ED0CH. THE JUMP ADDRESS IS
+                ; THEN LOCATED AT 0ED0DH. WE NAME THIS BIOST. THIS CONTAINS
+                ; 0F2ACH IN THE "NORMAL" CP/M LOAD. WE PATCH THIS TO ADM3A (THE
+                ; INTERCEPTOR). BOTH THE ADDRESS BIOST AND THE CONTENTS CONOUT
+                ; WILL CHANGE DEPENDING ON BIOS AND MEMORY SIZE. USE DDT TO
+                ; DETERMINE THE PROPER VALUES TO USE.
+                ;
+                ; NOT THAT THE PATCH ROUTINE AT 100H AND THE UNPATCH AT 107H
+                ; CANNOT END IN RET. THEY MUST BOTH EXIT WITH A WARM-START
+                ; BECAUSE DDT IS STILL IN MEMORY WHEN THESE ARE CALLED.
+                ;
+                ; CONOUT ROUTINE (AND ADM3A) DO NOT SAVE ANY REGISTERS. THE Z80
+                ; ALTERNATE REGISTERS MUST BE SAVED (FOR TURBO PASCAL, AMONG
+                ; OTHERS). TO SAVE BYTES, THIS CODE USES Z80 RELATIVE JUMPS.
+                ; FURTHERMORE, SINCE IT IS IN PAGE ZERO MEMORY, IT USED RST
+                ; INSTRUCTIONS INSTEAD OF CALL.
+                ;
+                ; I USE LOCATONS 10H..13H TO STORE THE CURRENT DATE (FOR
+                ; SUPERCALC 2 AND OTHERS). AS WELL, RST 1 (8) IS USED IF VIRTC
+                ; IS USED AS A REAL TIME CLOCK INTERRUPT. AS A RESULT, THIS CODE
+                ; STARTS AT 14H AND USES RST 3 AND RST 4 AS SUBROUTINE CALLS.
+                ; DDT USES 38H, 39H AND 3AH FOR RST 7 BREAKPOINT, SO WE DO NOT
+                ; USE THOSE THREE BYTES. THIS CODE ENDS AT 58H. CP/M DEAULT FCB
+                ; IS AT 5CH.
+                ;
+ ED0D =         BIOST   EQU     0ED0DH
+ F2AC =         CONOUT	EQU	0F2ACH
+                ;
+ 0014                   ORG     14H
+                ;
+ 0014 79        ESC:    MOV     A,C     ; '=' TO A
+                ;
+                ; ACTIVATE '=' TABLE ENTRY
+                ; ON ESC, THE FUNCTION DISPATCH TABLE IS AMENDED TO LOOK FOR
+                ; '='. ON THE '=' (WHICH SHOULD BE THE NEXT CHARACTER), ESC Y
+                ; IS EMITED, AND THE NEXT 2 CHARACTERS ARE THE Y AND X FOR THE
+                ; CURSOR. ON ALL CHARACTERS THROUGH THE DISPATCH TABLE, THE '='
+                ; TABLE ENTRY IS DISABLED, ALLOWING '=' TO BE A NORMAL
+                ; CHARACTER AGAIN.
+                ;
+ 0015 182E              DB      18h,(RTN2-$-1) AND 0FFH  ; JR
+ 0017 00                NOP
+                ;
+                ; CESC IS RST 3 (18H)
+                ; THIS ROUTINE PUTS OUT ESC FOLLOWED BY THE CHARACTER IN C
+                ;
+ 0018 C5                PUSH    B
+ 0019 0E1B              MVI     C,27
+ 001B E7                RST	4	; COUT
+ 001C C1                POP     B
+ 001D E7                RST	4	; COUT
+ 001E C9                RET
+ 001F 00                NOP
+                ;
+                ; OUTPUT CHARACTER C IS RST 4 (20H)
+                ; THIS ROUTINE PUTS OUT THE CHARACTER IN C USING THE ORIGINAL
+                ; BIOS ROUTINE.
+                ;
+ 0020 C3                DB	(JMP)
+ 0021 ACF2      PATCH:	DW	CONOUT
+                ;
+                ; THIS IS THE CHARACTER DIPATCH TABLE. EACH ENTRY IS 3 BYTES:
+                ; THE CHARACTER WE LOOK FOR, A PAYLOAD CHARACTER, THE LOW BYTE
+                ; OF THE ROUTINE TO HANDLE THE CASE. THE TABLE ENDS ON THE FIRST
+                ; 0 MATCH CHARACTER. AN '=' IS PUT INTO MODI ON THE ESC.
+                ;
+ 0023 1B3D14    CTBL:   DB      27, '=', ESC
+ 0026 0B4156            DB      11, 'A', DOE
+ 0029 0C4356            DB      12, 'C', DOE
+ 002C 1A4853            DB      26, 'H', CTLZ
+ 002F 1E4856            DB      30, 'H', DOE
+ 0032 005956    MODI:   DB      0,  'Y', DOE
+ 0035 00                DB      0
+                ;
+ 0036 00        	NOP
+ 0037 00        	NOP
+                ;
+                ; RST 7 (38H) IS USED AS A JMP FOR DDT
+                ; DDT (SID/ZSID ETC) USE THIS TO ALLOW THE USE OF RST 7 FOR
+                ; BREAKPOINTS.
+                ;
+                DDT:
+                ;
+                ; NEXT AVAILABLE LOCATION IS 3BH (DDT USES 3 BYTES FOR JMP)
+                ;
+ 003B                   ORG     3BH
+                ;
+                ; CHARACTER IS IN C, PSW, BC, DE, HL CAN BE DESTROYED, Z80
+                ; ALTERNATE REGISTERS DO NEED TO BE PRESERVED.
+                ;
+ 003B 212200    ADM3A:  LXI     H,CTBL-1
+ 003E 23        TOP:    INX     H	; POINT TO CHAR TO MATCH
+ 003F 7E                MOV     A,M
+ 0040 B7                ORA     A       ; IF NOT END OF LIST, TO L4
+ 0041 2006              DB      20H,(L4-$-1) AND 0FFH ; JR NZ
+                ;
+                ; END OF FUNCTION LIST
+                ;
+ 0043 E7                RST	4	; COUT OF CHARACTER (IN C)
+ 0044 AF        RTN:    XRA     A       ; AND MAKE SURE MODI SET TO 0
+ 0045 323200    RTN2:   STA     MODI
+ 0048 C9                RET
+                ;
+ 0049 23        L4:     INX     H	; POINT TO PAYLOAD
+ 004A 23                INX     H       ; POINT TO ADDRESS
+ 004B B9                CMP     C       ; TO TOP IF NO MATCH
+ 004C 20F0      	DB	20H,(TOP-$-1) AND 0FFH ; JZ NZ
+                ;
+                ; MATCH, LOAD PAYLOAD CHARACTER TO C, DISPATCH
+                ;
+ 004E 46        	MOV	B,M	; LOW ADDRESS
+ 004F 2B        	DCX	H
+ 0050 4E                MOV     C,M     ; PAYLOAD CHARACTER
+ 0051 68                MOV     L,B     ; H IS ALREADY 0, LOW BYTE OF ADDRESS
+ 0052 E9                PCHL            ; DISPATCH
+                ;
+ 0053 DF        CTLZ:   RST	3	; CESC HOME
+ 0054 0E4A              MVI     C,'J'
+ 0056 DF        DOE:    RST	3	; CESC CLEAR SCREEN
+ 0057 18EB      	DB	18H,(RTN-$-1) AND 0FFH ; JR
+                ;
+                ; LAST BYTE OF THIS PATCH ENDS AT 58H, LEAVING 59H, 5AH, 5BH
+                ; FREE (THREE BYTES). CP/M 2.2 FCB STARTS AT 5CH
+                ;
+ 0100           	ORG	100H
+                ;
+                ; FOLLOWING CODE ENABLES (G100)
+                ;
+ 0100 213B00    START:	LXI	H,ADM3A
+ 0103 220DED    	SHLD    BIOST
+ 0106 C7                RST	0
+                ;
+                ; FOLLOWING CODE REMOVES (G107)
+                ;
+ 0107 21ACF2            LXI     H,CONOUT
+ 010A 220DED            SHLD    BIOST
+ 010D C7                RST	0
+                ;
+ 010E                   END     START
+
