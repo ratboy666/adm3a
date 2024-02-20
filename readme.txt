@@ -55,41 +55,4 @@ DDT ADM3A.HEX
 The entry at 107H restores the original BIOS table entry, and thus restores
 normal terminal operation.
 
-
-M80 =ADM3A/L
-L80
-
-ADM3A.HEX
-
-DDT ADM3A.HEX
--L0
-  0000  JMP  ED03
--LED03
-  ED03  JMP  EDD9 <- WBOOT
-  ED06  JMP  F286 <- CONST
-  ED09  JMP  F293 <- CONIN
-  ED0C  JMP  F2AC <- CONOUT
-
-PATCH CONOUT (F2AC) TO 0021: THIS IS DONE IN THE SOURCE
-
-(THIS IS ENTERED ALREADY IN ADM3A.HEX -- FOR MY CP/M)
-
-AT LOCATION 100H, WE SET THE BIOS ENTRY FOR CONOUT TO OUR ROUTINE AT
-003BH
-
-0100  LXI H,003B
-0103  SHLD FF0D
-0106  JMP 0000
-
--G100
-
-A>
-
-AND WE HAVE ADM3A ENABLED. TO DISABLE:
-
-0100 LXI H,FE4C
-0103 SHLD FF0D
-0106 JMP 0000
-
-
-
+

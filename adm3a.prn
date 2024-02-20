@@ -33,6 +33,9 @@
  ED0D =         BIOST   EQU     0ED0DH
  F2AC =         CONOUT	EQU	0F2ACH
                 ;
+ 0018 =         JR	EQU	18H
+ 0020 =         JRNZ	EQU	20H
+                ;
  0014                   ORG     14H
                 ;
  0014 79        ESC:    MOV     A,C     ; '=' TO A
@@ -45,7 +48,7 @@
                 ; TABLE ENTRY IS DISABLED, ALLOWING '=' TO BE A NORMAL
                 ; CHARACTER AGAIN.
                 ;
- 0015 182E              DB      18h,(RTN2-$-1) AND 0FFH  ; JR
+ 0015 182E              DB      JR,(RTN2-$-1) AND 0FFH
  0017 00                NOP
                 ;
                 ; CESC IS RST 3 (18H)
@@ -99,7 +102,7 @@
  003E 23        TOP:    INX     H	; POINT TO CHAR TO MATCH
  003F 7E                MOV     A,M
  0040 B7                ORA     A       ; IF NOT END OF LIST, TO L4
- 0041 2006              DB      20H,(L4-$-1) AND 0FFH ; JR NZ
+ 0041 2006              DB      JRNZ,(L4-$-1) AND 0FFH
                 ;
                 ; END OF FUNCTION LIST
                 ;
@@ -111,7 +114,7 @@
  0049 23        L4:     INX     H	; POINT TO PAYLOAD
  004A 23                INX     H       ; POINT TO ADDRESS
  004B B9                CMP     C       ; TO TOP IF NO MATCH
- 004C 20F0      	DB	20H,(TOP-$-1) AND 0FFH ; JZ NZ
+ 004C 20F0      	DB	JRNZ,(TOP-$-1) AND 0FFH
                 ;
                 ; MATCH, LOAD PAYLOAD CHARACTER TO C, DISPATCH
                 ;
@@ -144,4 +147,4 @@
  010D C7                RST	0
                 ;
  010E                   END     START
-
+
